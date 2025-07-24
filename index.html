@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Age of Empires+</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #eef;
+    }
+    #ui {
+      margin-bottom: 10px;
+    }
+    canvas {
+      border: 1px solid #333;
+      background: #cde;
+      cursor: pointer;
+    }
+    button {
+      margin: 5px;
+      padding: 6px 12px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mini Age of Empires+</h1>
+  <div id="ui">
+    Bois : <span id="wood">0</span>
+    | <button id="buildBarracks">Construire Caserne (50 bois)</button>
+    <button id="trainSoldier">Créer Soldat (20 bois)</button>
+  </div>
+  <canvas id="game" width="800" height="480"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const tileSize = 40;
+    const rows = 12, cols = 20;
+
+    let wood = 0;
+    let trees = [];
+    let barracks = null;
+    let villager = { x: 2, y: 2 };
+    let soldiers = [];
+    let enemies = [
+      { x: 15, y: 5, hp: 30 },
+      { x: 17, y: 8, hp: 30 }
+    ];
+
+    // Génère des arbres
+    for (let i = 0; i < 20; i++) {
+      trees.push({
+        x: Math.floor(Math.random() * cols),
+        y: Math.floor(Math.random() * rows),
+        collected: false
+      });
+    }
+
+    function drawTile(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+      ctx.strokeStyle = "#999";
+      ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Sol
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          drawTile(x, y, "#aaddaa");
+        }
+      }
+
+      // Arbres
+      trees.forEach(t => {
+        if (!t.collected) {
+          ctx.fillStyle = "green";
+          ctx.beginPath();
+          ctx.arc(t.x * tileSize + 20, t.y * tileSize + 20, 12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      // Caserne
+      if (barracks) {
+        drawTile(barracks.x, barracks.y, "#888");
+        ctx.fillStyle = "black";
+        ctx.fillText("🏯", barracks.x * tileSize + 10, barracks.y * tileSize + 28);
+      }
+
+      // Villageois
+      ctx.fillStyle = "brown";
+      ctx.beginPath();
+      ctx.arc(villager.x * tileSize + 20, villager.y * tileSize + 20, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Soldats
+      soldiers.forEach(s => {
+        ctx.fillStyle = "blue";
+        ctx.beginPath();
+        ctx.arc(s.x * tileSize + 20, s.y * tileSize + 20, 10, 0, Math.PI * 2);
+        ctx.fill();
+        drawHealthBar(s.x, s.y, s.hp, 30);
+      });
+
+      // Ennemis
+      enemies.forEach(e => {
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(e.x * tileSize + 20, e.y * tileSize + 20, 10, 0, Math.PI * 2);
+        ctx.fill();
+        drawHealthBar(e.x, e.y, e.hp, 30);
+      });
+    }
+
+    function drawHealthBar(x, y, hp, max) {
+      let pct = hp / max;
+      ctx.fillStyle = "black";
+      ctx.fillRect(x * tileSize + 5, y * tileSize + 5, 30, 4);
+      ctx.fillStyle = "lime";
+      ctx.fillRect(x * tileSize + 5, y * tileSize + 5, 30 * pct, 4);
+    }
+
+    function collectWood() {
+      trees.forEach(t => {
+        if (!t.collected && t.x === villager.x && t.y === villager.y) {
+          t.collected = true;
+          wood += 10;
+          updateUI();
+        }
+      });
+    }
+
+    function updateUI() {
+      document.getElementById("wood").textContent = wood;
+    }
+
+    function handleCombat() {
+      soldiers.forEach(s => {
+        enemies.forEach(e => {
+          if (Math.abs(s.x - e.x) <= 1 && Math.abs(s.y - e.y) <= 1) {
+            e.hp -= 0.5;
+            s.hp -= 0.1;
+          }
+        });
+      });
+
+      // IA ennemie : bouge vers le soldat le plus proche
+      enemies.forEach(e => {
+        let target = soldiers[0];
+        if (target) {
+          if (e.x < target.x) e.x++;
+          else if (e.x > target.x) e.x--;
+          if (e.y < target.y) e.y++;
+          else if (e.y > target.y) e.y--;
+        }
+      });
+
+      // Nettoyage
+      enemies = enemies.filter(e => e.hp > 0);
+      soldiers = soldiers.filter(s => s.hp > 0);
+    }
+
+    function gameLoop() {
+      handleCombat();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowUp" && villager.y > 0) villager.y--;
+      if (e.key === "ArrowDown" && villager.y < rows - 1) villager.y++;
+      if (e.key === "ArrowLeft" && villager.x > 0) villager.x--;
+      if (e.key === "ArrowRight" && villager.x < cols - 1) villager.x++;
+      collectWood();
+    });
+
+    canvas.addEventListener("click", e => {
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / tileSize);
+      const y = Math.floor((e.clientY - rect.top) / tileSize);
+      soldiers.forEach(s => {
+        s.x = x;
+        s.y = y;
+      });
+    });
+
+    document.getElementById("buildBarracks").addEventListener("click", () => {
+      if (wood >= 50 && !barracks) {
+        barracks = { x: villager.x, y: villager.y };
+        wood -= 50;
+        updateUI();
+      }
+    });
+
+    document.getElementById("trainSoldier").addEventListener("click", () => {
+      if (wood >= 20 && barracks) {
+        wood -= 20;
+        soldiers.push({ x: barracks.x, y: barracks.y, hp: 30 });
+        updateUI();
+      }
+    });
+
+    updateUI();
+    gameLoop();
+  </script>
+</body>
+</html>
